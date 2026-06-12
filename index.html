@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>家計簿カレンダー</title>
+<meta name="theme-color" content="#3A4DA6">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="家計簿">
+<style>
+  :root{
+    --paper:#EEF1F6;
+    --surface:#FFFFFF;
+    --ink:#1B2440;
+    --ink-soft:#64708A;
+    --line:#E0E5EE;
+    --accent:#3A4DA6;
+    --accent-soft:#EAEDF8;
+    --income:#1F8A5B;
+    --income-bg:#E7F4EE;
+    --expense:#C8492F;
+    --expense-bg:#FBECE7;
+    --shadow:0 1px 2px rgba(27,36,64,.06),0 8px 24px rgba(27,36,64,.08);
+    --radius:14px;
+    font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased}
+  .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input,select{font-family:inherit}
+
+  .wrap{max-width:760px;margin:0 auto;padding:18px 14px 64px}
+
+  /* ---- Top bar ---- */
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+  .brand{font-size:18px;font-weight:800;letter-spacing:.02em}
+  .brand .dot{color:var(--accent)}
+  .monthnav{display:flex;align-items:center;gap:6px}
+  .monthnav .label{font-size:16px;font-weight:700;min-width:118px;text-align:center}
+  .iconbtn{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--surface);
+    box-shadow:var(--shadow);font-size:17px;color:var(--accent);transition:transform .12s ease,background .12s ease}
+  .iconbtn:hover{background:var(--accent-soft)}
+  .iconbtn:active{transform:scale(.94)}
+  .today-btn{font-size:13px;font-weight:700;color:var(--accent);padding:8px 12px;border-radius:10px;
+    background:var(--surface);box-shadow:var(--shadow)}
+  .today-btn:hover{background:var(--accent-soft)}
+
+  /* ---- Summary ---- */
+  .summary{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:16px 18px;display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:8px;margin-bottom:14px;
+    border-left:5px solid var(--accent)}
+  .summary .cell .k{font-size:12px;color:var(--ink-soft);font-weight:700;margin-bottom:4px;letter-spacing:.03em}
+  .summary .cell .v{font-size:18px;font-weight:800;line-height:1.1}
+  .summary .cell.balance .v{font-size:24px}
+  .v.income{color:var(--income)}
+  .v.expense{color:var(--expense)}
+  .v.pos{color:var(--accent)}
+  .v.neg{color:var(--expense)}
+  @media(max-width:460px){
+    .summary{grid-template-columns:1fr 1fr;gap:10px 8px}
+    .summary .cell.balance{grid-column:1 / -1;border-top:1px solid var(--line);padding-top:10px}
+  }
+
+  /* ---- Calendar ---- */
+  .cal{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+  .dow{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--line)}
+  .dow span{text-align:center;font-size:11px;font-weight:700;color:var(--ink-soft);padding:9px 0}
+  .dow span.sun{color:var(--expense)}
+  .dow span.sat{color:var(--accent)}
+  .grid{display:grid;grid-template-columns:repeat(7,1fr)}
+  .day{position:relative;min-height:74px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+    padding:6px 5px 5px;text-align:left;display:flex;flex-direction:column;gap:2px;transition:background .1s ease}
+  .day:nth-child(7n){border-right:none}
+  .day.empty{background:#FAFBFD;cursor:default}
+  .day:not(.empty):hover{background:var(--accent-soft)}
+  .day:not(.empty):active{background:#dfe4f4}
+  .daynum{font-size:13px;font-weight:700;color:var(--ink);line-height:1}
+  .day.sun .daynum{color:var(--expense)}
+  .day.sat .daynum{color:var(--accent)}
+  .day.today .daynum{background:var(--accent);color:#fff;border-radius:7px;padding:2px 6px;display:inline-block}
+  .day .amt{font-size:11px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .day .amt.in{color:var(--income)}
+  .day .amt.ex{color:var(--expense)}
+  .day .amt.net{font-weight:800;border-top:1px solid var(--line);margin-top:2px;padding-top:2px}
+  .day .amt.net.neg{color:var(--expense)}
+  .day .amt.net.pos{color:var(--income)}
+  .day .spacer{flex:1}
+  @media(max-width:460px){
+    .day{min-height:62px;padding:5px 3px}
+    .day .amt{font-size:10px}
+  }
+
+  /* ---- Breakdown ---- */
+  .breakdown{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:16px 18px;margin-top:14px}
+  .breakdown h2{font-size:13px;font-weight:800;letter-spacing:.03em;margin-bottom:12px;color:var(--ink)}
+  .bk-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+  .bk-row .name{font-size:13px;font-weight:700;width:96px;flex:none;color:var(--ink)}
+  .bk-row .bar{flex:1;height:8px;background:var(--paper);border-radius:99px;overflow:hidden}
+  .bk-row .bar i{display:block;height:100%;background:var(--expense);border-radius:99px}
+  .bk-row .val{font-size:13px;font-weight:700;width:84px;text-align:right;color:var(--ink)}
+  .bk-empty{font-size:13px;color:var(--ink-soft);padding:6px 0}
+
+  /* ---- Sheet (day detail) ---- */
+  .scrim{position:fixed;inset:0;background:rgba(27,36,64,.42);opacity:0;pointer-events:none;
+    transition:opacity .2s ease;z-index:40}
+  .scrim.open{opacity:1;pointer-events:auto}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--surface);
+    border-radius:20px 20px 0 0;box-shadow:0 -8px 40px rgba(27,36,64,.22);
+    max-width:760px;margin:0 auto;transform:translateY(100%);transition:transform .26s cubic-bezier(.22,1,.36,1);
+    max-height:88vh;display:flex;flex-direction:column}
+  .sheet.open{transform:translateY(0)}
+  .sheet-head{padding:16px 18px 12px;border-bottom:1px solid var(--line);display:flex;
+    align-items:flex-start;justify-content:space-between;gap:10px}
+  .sheet-date{font-size:17px;font-weight:800}
+  .sheet-sub{font-size:12px;color:var(--ink-soft);font-weight:700;margin-top:3px}
+  .sheet-day-total{text-align:right;min-width:128px}
+  .sheet-day-total .t-line{display:flex;justify-content:space-between;align-items:baseline;gap:14px}
+  .sheet-day-total .t-k{font-size:11px;font-weight:700;color:var(--ink-soft)}
+  .sheet-day-total .t-ex{font-size:14px;font-weight:700;color:var(--expense)}
+  .sheet-day-total .t-in{font-size:14px;font-weight:700;color:var(--income)}
+  .sheet-day-total .t-net{border-top:1px solid var(--line);margin-top:4px;padding-top:4px}
+  .sheet-day-total .t-total{font-size:19px;font-weight:800}
+  .sheet-day-total .t-total.neg{color:var(--expense)}
+  .sheet-day-total .t-total.pos{color:var(--accent)}
+  .closebtn{font-size:20px;color:var(--ink-soft);width:30px;height:30px;border-radius:8px}
+  .closebtn:hover{background:var(--paper)}
+
+  .sheet-body{overflow-y:auto;padding:14px 18px 4px}
+  .entry{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .entry .tag{font-size:11px;font-weight:800;padding:3px 8px;border-radius:7px;flex:none}
+  .entry .tag.in{background:var(--income-bg);color:var(--income)}
+  .entry .tag.ex{background:var(--expense-bg);color:var(--expense)}
+  .entry .e-cat{font-size:14px;font-weight:700}
+  .entry .e-memo{font-size:12px;color:var(--ink-soft);margin-top:1px}
+  .entry .grow{flex:1;min-width:0}
+  .entry .e-amt{font-size:15px;font-weight:800}
+  .entry .e-amt.in{color:var(--income)}
+  .entry .e-amt.ex{color:var(--expense)}
+  .entry .del{font-size:13px;color:var(--ink-soft);padding:6px 8px;border-radius:8px;flex:none}
+  .entry .del:hover{background:var(--expense-bg);color:var(--expense)}
+  .no-entry{font-size:13px;color:var(--ink-soft);padding:14px 0;text-align:center}
+
+  /* ---- Add form ---- */
+  .form{padding:14px 18px calc(18px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:#FBFCFE}
+  .seg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+  .seg button{padding:10px;border-radius:10px;font-weight:800;font-size:14px;border:1.5px solid var(--line);
+    background:var(--surface);color:var(--ink-soft);transition:all .12s ease}
+  .seg button.on.ex{border-color:var(--expense);background:var(--expense-bg);color:var(--expense)}
+  .seg button.on.in{border-color:var(--income);background:var(--income-bg);color:var(--income)}
+  .frow{display:flex;gap:8px;margin-bottom:10px}
+  .field{flex:1}
+  .field label{display:block;font-size:11px;font-weight:700;color:var(--ink-soft);margin-bottom:4px}
+  .field input,.field select{width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;
+    font-size:15px;font-weight:600;background:var(--surface);color:var(--ink)}
+  .field input:focus,.field select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .field input.amount{font-variant-numeric:tabular-nums;font-weight:800;font-size:18px}
+  .addbtn{width:100%;padding:13px;border-radius:11px;background:var(--accent);color:#fff;font-weight:800;
+    font-size:15px;transition:filter .12s ease,transform .1s ease}
+  .addbtn:hover{filter:brightness(1.06)}
+  .addbtn:active{transform:scale(.99)}
+  .addbtn:disabled{opacity:.45;cursor:not-allowed}
+
+  @media(prefers-reduced-motion:reduce){
+    *{transition:none!important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand">家計簿<span class="dot">カレンダー</span></div>
+    <div class="monthnav">
+      <button class="today-btn" id="todayBtn">今日</button>
+      <button class="iconbtn" id="prevBtn" aria-label="前の月">‹</button>
+      <div class="label num" id="monthLabel"></div>
+      <button class="iconbtn" id="nextBtn" aria-label="次の月">›</button>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div class="cell"><div class="k">収入</div><div class="v income num" id="sumIncome">¥0</div></div>
+    <div class="cell"><div class="k">支出</div><div class="v expense num" id="sumExpense">¥0</div></div>
+    <div class="cell balance"><div class="k">残高</div><div class="v num" id="sumBalance">¥0</div></div>
+  </div>
+
+  <div class="cal">
+    <div class="dow">
+      <span class="sun">日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span class="sat">土</span>
+    </div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="breakdown">
+    <h2>カテゴリ別の支出（この月）</h2>
+    <div id="breakdownBody"></div>
+  </div>
+</div>
+
+<!-- Day sheet -->
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="日別の入力">
+  <div class="sheet-head">
+    <div>
+      <div class="sheet-date num" id="sheetDate">—</div>
+      <div class="sheet-sub" id="sheetSub"></div>
+    </div>
+    <div style="display:flex;align-items:flex-start;gap:8px">
+      <div class="sheet-day-total">
+        <div class="t-line"><span class="t-k">支出</span><span class="t-ex num" id="dayExpense">¥0</span></div>
+        <div class="t-line"><span class="t-k">収入</span><span class="t-in num" id="dayIncome">+¥0</span></div>
+        <div class="t-line t-net"><span class="t-k">合計</span><span class="t-total num" id="dayNet">¥0</span></div>
+      </div>
+      <button class="closebtn" id="closeBtn" aria-label="閉じる">✕</button>
+    </div>
+  </div>
+
+  <div class="sheet-body" id="entryList"></div>
+
+  <div class="form">
+    <div class="seg">
+      <button id="segExpense" class="on ex" data-type="expense">支出</button>
+      <button id="segIncome" data-type="income">収入</button>
+    </div>
+    <div class="frow">
+      <div class="field" style="flex:1.1">
+        <label for="amountInput">金額</label>
+        <input id="amountInput" class="amount num" type="number" inputmode="numeric" min="0" placeholder="0">
+      </div>
+      <div class="field" style="flex:1.4">
+        <label for="catInput">カテゴリ</label>
+        <select id="catInput"></select>
+      </div>
+    </div>
+    <div class="frow">
+      <div class="field">
+        <label for="memoInput">メモ（任意）</label>
+        <input id="memoInput" type="text" placeholder="例：スーパーで買い物">
+      </div>
+    </div>
+    <button class="addbtn" id="addBtn" disabled>追加する</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- storage helpers (persistent across sessions; in-memory fallback) ----------
+  // Data is stored only in THIS browser, on THIS device (localStorage).
+  // Falls back to in-memory if storage is unavailable (e.g. private mode).
+  var mem = {};
+  var hasLS = (function(){
+    try{ var k="__kk_test"; localStorage.setItem(k,"1"); localStorage.removeItem(k); return true; }
+    catch(e){ return false; }
+  })();
+  async function sGet(key){
+    if(hasLS){ try{ return localStorage.getItem(key); }catch(e){} }
+    return (key in mem) ? mem[key] : null;
+  }
+  async function sSet(key, value){
+    if(hasLS){ try{ localStorage.setItem(key, value); return; }catch(e){} }
+    mem[key] = value;
+  }
+
+  // ---------- categories ----------
+  var CATS = {
+    expense:["食費","外食","日用品","交通","通信","水道光熱","住居","趣味・娯楽","交際費","衣服・美容","医療","教育","その他"],
+    income:["給料","副業","お小遣い","ボーナス","還付・返金","その他"]
+  };
+
+  // ---------- state ----------
+  var now = new Date();
+  var curY = now.getFullYear();
+  var curM = now.getMonth()+1;        // 1-12
+  var monthData = {};                 // { "YYYY-MM-DD": [ {id,type,amount,category,memo} ] }
+  var selectedDate = null;            // "YYYY-MM-DD"
+  var formType = "expense";
+
+  // ---------- utils ----------
+  function pad(n){ return n<10 ? "0"+n : ""+n; }
+  function dstr(y,m,d){ return y+"-"+pad(m)+"-"+pad(d); }
+  function yen(n){
+    var sign = n<0 ? "-" : "";
+    return sign + "¥" + Math.abs(Math.round(n)).toLocaleString("ja-JP");
+  }
+  function monthKey(){ return "month:"+curY+"-"+pad(curM); }
+  function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+  function dayList(ds){ return monthData[ds] || []; }
+  function dayTotals(ds){
+    var inc=0, exp=0;
+    dayList(ds).forEach(function(e){ if(e.type==="income") inc+=e.amount; else exp+=e.amount; });
+    return {inc:inc, exp:exp};
+  }
+
+  // ---------- load / save ----------
+  async function loadMonth(){
+    var raw = await sGet(monthKey());
+    monthData = {};
+    if(raw){ try{ monthData = JSON.parse(raw) || {}; }catch(e){ monthData = {}; } }
+  }
+  async function saveMonth(){
+    await sSet(monthKey(), JSON.stringify(monthData));
+  }
+
+  // ---------- render ----------
+  var $ = function(id){ return document.getElementById(id); };
+
+  function renderHeader(){
+    $("monthLabel").textContent = curY+"年"+curM+"月";
+    var inc=0, exp=0;
+    Object.keys(monthData).forEach(function(ds){
+      var t = dayTotals(ds); inc+=t.inc; exp+=t.exp;
+    });
+    var bal = inc-exp;
+    $("sumIncome").textContent = yen(inc);
+    $("sumExpense").textContent = yen(exp);
+    var b = $("sumBalance");
+    b.textContent = yen(bal);
+    b.className = "v num " + (bal<0 ? "neg" : "pos");
+  }
+
+  function renderGrid(){
+    var grid = $("grid");
+    grid.innerHTML = "";
+    var first = new Date(curY, curM-1, 1).getDay();   // 0=Sun
+    var days = new Date(curY, curM, 0).getDate();
+    var todayStr = dstr(now.getFullYear(), now.getMonth()+1, now.getDate());
+
+    for(var i=0;i<first;i++){
+      var e = document.createElement("div");
+      e.className = "day empty";
+      grid.appendChild(e);
+    }
+    for(var d=1; d<=days; d++){
+      var ds = dstr(curY, curM, d);
+      var dow = new Date(curY, curM-1, d).getDay();
+      var cell = document.createElement("button");
+      cell.className = "day" + (dow===0?" sun":dow===6?" sat":"") + (ds===todayStr?" today":"");
+      cell.setAttribute("data-date", ds);
+
+      var t = dayTotals(ds);
+      var html = '<span class="daynum">'+d+'</span>';
+      if(t.inc>0) html += '<span class="amt in num">+'+yen(t.inc).replace("¥","¥")+'</span>';
+      if(t.exp>0) html += '<span class="amt ex num">'+yen(t.exp)+'</span>';
+      if(t.inc>0 && t.exp>0){
+        var net = t.inc - t.exp;
+        html += '<span class="amt net num '+(net<0?"neg":"pos")+'">'+(net>=0?"+":"")+yen(net)+'</span>';
+      }
+      cell.innerHTML = html;
+      cell.addEventListener("click", (function(date){ return function(){ openSheet(date); }; })(ds));
+      grid.appendChild(cell);
+    }
+  }
+
+  function renderBreakdown(){
+    var body = $("breakdownBody");
+    var totals = {};
+    Object.keys(monthData).forEach(function(ds){
+      dayList(ds).forEach(function(e){
+        if(e.type==="expense"){ totals[e.category]=(totals[e.category]||0)+e.amount; }
+      });
+    });
+    var arr = Object.keys(totals).map(function(k){ return {name:k,val:totals[k]}; });
+    arr.sort(function(a,b){ return b.val-a.val; });
+
+    if(arr.length===0){
+      body.innerHTML = '<div class="bk-empty">まだ支出の記録がありません。日付をタップして入力できます。</div>';
+      return;
+    }
+    var max = arr[0].val;
+    body.innerHTML = arr.map(function(r){
+      var w = Math.max(4, Math.round(r.val/max*100));
+      return '<div class="bk-row">'
+        + '<span class="name">'+r.name+'</span>'
+        + '<span class="bar"><i style="width:'+w+'%"></i></span>'
+        + '<span class="val num">'+yen(r.val)+'</span>'
+        + '</div>';
+    }).join("");
+  }
+
+  function renderAll(){ renderHeader(); renderGrid(); renderBreakdown(); }
+
+  // ---------- sheet ----------
+  function fillCats(){
+    var sel = $("catInput");
+    sel.innerHTML = CATS[formType].map(function(c){ return '<option>'+c+'</option>'; }).join("");
+  }
+  function setFormType(type){
+    formType = type;
+    $("segExpense").className = (type==="expense") ? "on ex" : "";
+    $("segIncome").className  = (type==="income")  ? "on in" : "";
+    fillCats();
+  }
+
+  function weekdayJP(ds){
+    var p=ds.split("-"); var dt=new Date(+p[0],+p[1]-1,+p[2]);
+    return ["日","月","火","水","木","金","土"][dt.getDay()];
+  }
+
+  function renderEntries(){
+    var ds = selectedDate;
+    var list = dayList(ds);
+    var box = $("entryList");
+    var t = dayTotals(ds);
+    $("dayExpense").textContent = yen(t.exp);
+    $("dayIncome").textContent = "+"+yen(t.inc);
+    var net = t.inc - t.exp;
+    var dn = $("dayNet");
+    dn.textContent = (net>0?"+":"") + yen(net);
+    dn.className = "t-total num " + (net<0?"neg":"pos");
+
+    if(list.length===0){
+      box.innerHTML = '<div class="no-entry">この日はまだ記録がありません</div>';
+      return;
+    }
+    box.innerHTML = list.map(function(e){
+      var cls = e.type==="income" ? "in":"ex";
+      var sign = e.type==="income" ? "+":"";
+      return '<div class="entry">'
+        + '<span class="tag '+cls+'">'+(e.type==="income"?"収入":"支出")+'</span>'
+        + '<div class="grow"><div class="e-cat">'+escapeHtml(e.category)+'</div>'
+        + (e.memo?'<div class="e-memo">'+escapeHtml(e.memo)+'</div>':'')+'</div>'
+        + '<span class="e-amt '+cls+' num">'+sign+yen(e.amount)+'</span>'
+        + '<button class="del" data-id="'+e.id+'">削除</button>'
+        + '</div>';
+    }).join("");
+
+    Array.prototype.forEach.call(box.querySelectorAll(".del"), function(btn){
+      btn.addEventListener("click", function(){ deleteEntry(btn.getAttribute("data-id")); });
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g,function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function openSheet(ds){
+    selectedDate = ds;
+    var p = ds.split("-");
+    $("sheetDate").textContent = (+p[1])+"月"+(+p[2])+"日";
+    $("sheetSub").textContent = p[0]+"年 ("+weekdayJP(ds)+"曜日)";
+    setFormType("expense");
+    $("amountInput").value = "";
+    $("memoInput").value = "";
+    validate();
+    renderEntries();
+    $("scrim").classList.add("open");
+    $("sheet").classList.add("open");
+  }
+  function closeSheet(){
+    $("scrim").classList.remove("open");
+    $("sheet").classList.remove("open");
+    selectedDate = null;
+  }
+
+  async function addEntry(){
+    var amt = parseInt($("amountInput").value, 10);
+    if(!selectedDate || !amt || amt<=0) return;
+    if(!monthData[selectedDate]) monthData[selectedDate] = [];
+    monthData[selectedDate].push({
+      id: uid(),
+      type: formType,
+      amount: amt,
+      category: $("catInput").value,
+      memo: $("memoInput").value.trim()
+    });
+    await saveMonth();
+    $("amountInput").value = "";
+    $("memoInput").value = "";
+    validate();
+    renderEntries();
+    renderAll();
+    $("amountInput").focus();
+  }
+
+  async function deleteEntry(id){
+    var ds = selectedDate;
+    monthData[ds] = dayList(ds).filter(function(e){ return e.id!==id; });
+    if(monthData[ds].length===0) delete monthData[ds];
+    await saveMonth();
+    renderEntries();
+    renderAll();
+  }
+
+  function validate(){
+    var amt = parseInt($("amountInput").value,10);
+    $("addBtn").disabled = !(amt>0);
+  }
+
+  // ---------- month nav ----------
+  async function changeMonth(delta){
+    curM += delta;
+    if(curM>12){ curM=1; curY++; }
+    if(curM<1){ curM=12; curY--; }
+    await loadMonth();
+    renderAll();
+  }
+  async function goToday(){
+    curY = now.getFullYear(); curM = now.getMonth()+1;
+    await loadMonth();
+    renderAll();
+  }
+
+  // ---------- wire up ----------
+  $("prevBtn").addEventListener("click", function(){ changeMonth(-1); });
+  $("nextBtn").addEventListener("click", function(){ changeMonth(1); });
+  $("todayBtn").addEventListener("click", goToday);
+  $("closeBtn").addEventListener("click", closeSheet);
+  $("scrim").addEventListener("click", closeSheet);
+  $("segExpense").addEventListener("click", function(){ setFormType("expense"); });
+  $("segIncome").addEventListener("click", function(){ setFormType("income"); });
+  $("amountInput").addEventListener("input", validate);
+  $("addBtn").addEventListener("click", addEntry);
+  $("amountInput").addEventListener("keydown", function(e){ if(e.key==="Enter") addEntry(); });
+  $("memoInput").addEventListener("keydown", function(e){ if(e.key==="Enter") addEntry(); });
+  document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeSheet(); });
+
+  // ---------- init ----------
+  (async function(){
+    await loadMonth();
+    renderAll();
+  })();
+})();
+
+// Register service worker for offline use (works once hosted over https, e.g. GitHub Pages)
+if('serviceWorker' in navigator){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  });
+}
+</script>
+</body>
+</html>
